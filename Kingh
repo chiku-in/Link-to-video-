@@ -1,0 +1,67 @@
+import os
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    CallbackQueryHandler,
+    ContextTypes,
+)
+
+# ✅ Required channels
+REQUIRED_CHANNELS = ["@ckdau", "@teravido"]
+
+# ✅ Check if user has joined all channels
+async def is_user_joined_all(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    user_id = update.effective_user.id
+    for channel in REQUIRED_CHANNELS:
+        try:
+            member = await context.bot.get_chat_member(chat_id=channel, user_id=user_id)
+            if member.status not in ["member", "creator", "administrator"]:
+                return False
+        except:
+            return False
+    return True
+
+# ✅ /start command
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_joined = await is_user_joined_all(update, context)
+    if not user_joined:
+        buttons = [
+            [InlineKeyboardButton(f"📢 Join {channel}", url=f"https://t.me/{channel.strip('@')}")]
+            for channel in REQUIRED_CHANNELS
+        ]
+        buttons.append([InlineKeyboardButton("✅ I Have Joined", callback_data="check_joined")])
+        await update.message.reply_text(
+            "🔒 Please join all the channels below and then tap the button below to continue.",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+        return
+
+    await update.message.reply_text("✅ Thank you! Now you can send your Terabox link here.")
+
+# ✅ Callback for "I Have Joined"
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "check_joined":
+        user_joined = await is_user_joined_all(update, context)
+        if user_joined:
+            await query.edit_message_text("✅ You have successfully joined all channels. You may now send the Terabox link.")
+        else:
+            await query.edit_message_text("❌ You have not joined all required channels. Please join them and try again.")
+
+# ✅ Main function
+if __name__ == "__main__":
+    import asyncio
+    from telegram.ext import MessageHandler, filters
+
+    BOT_TOKEN = "7626401573:AAFCO0WcPa6sh2EYdwVEPBYYCvujDanU_ig"  # <-- Replace with your bot token
+
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button_callback))
+
+    print("✅ Bot is running...")
+    app.run_polling()
